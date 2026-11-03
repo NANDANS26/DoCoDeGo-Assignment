@@ -8,7 +8,7 @@ export const Route = createFileRoute('/')({
   component: Dashboard,
 })
 
-function Dashboard() {
+export function Dashboard() {
   // Home state
   const [homes, setHomes] = useState<Home[]>([])
   const [selectedHomeId, setSelectedHomeId] = useState<string>('')
@@ -588,8 +588,8 @@ function Dashboard() {
                               const memberName =
                                 memberNameMap.get(share.memberId) ||
                                 `Member ${share.memberId.slice(0, 6)}`
-                              const isPaid = share.paidAt !== null
                               const state = paymentStates[share.id]
+                              const isPaid = share.paidAt !== null || state?.status === 'paid'
                               const isPaying = state?.status === 'paying'
                               const hasError = state?.status === 'error'
 
