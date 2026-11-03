@@ -48,6 +48,29 @@ async function parseJsonBody<T>(c: Context): Promise<T | null> {
 // PHASE 2: HOMES & MEMBERS
 // ---------------------------------------------------------------------------
 
+// GET /api/homes - List all homes (For frontend selector)
+app.get('/api/homes', async (c) => {
+  const homes = await c.env.DB.prepare(
+    'SELECT id, name, created_at FROM homes ORDER BY created_at ASC',
+  ).all<HomeRow>()
+
+  return c.json({ homes: homes.results || [] }, 200)
+})
+
+// GET /api/homes/:homeId - Get a single home
+app.get('/api/homes/:homeId', async (c) => {
+  const homeId = c.req.param('homeId')
+  const home = await c.env.DB.prepare('SELECT id, name, created_at FROM homes WHERE id = ?')
+    .bind(homeId)
+    .first<HomeRow>()
+
+  if (!home) {
+    return c.json({ error: 'Home not found' }, 404)
+  }
+
+  return c.json({ id: home.id, name: home.name }, 200)
+})
+
 // POST /api/homes - Create a new home
 app.post('/api/homes', async (c) => {
   const body = await parseJsonBody<{ name?: unknown }>(c)

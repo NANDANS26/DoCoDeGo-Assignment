@@ -6,6 +6,7 @@
     "build": "pnpm --filter bill-splitter-web build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter bill-splitter-api test",
+    "test:web": "pnpm --filter bill-splitter-api exec vitest run --dir ../web/test",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "format": "biome format --write .",
