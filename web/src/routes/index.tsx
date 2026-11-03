@@ -252,23 +252,49 @@ function Dashboard() {
       }
     } catch (err) {
       const is409 = err instanceof ApiClientError && err.status === 409
-      const errorMessage =
-        err instanceof ApiClientError
-          ? err.message
-          : 'Payment failed due to a network or server error.'
 
-      setPaymentStates((prev) => ({
-        ...prev,
-        [shareId]: {
-          status: is409 ? 'conflict' : 'error',
-          idempotencyKey, // preserve key for retries
-          errorMessage,
-        },
-      }))
+      if (is409) {
+        // 409 means share is already paid on the server with another key
+        // Immediately update local share state to paid
+        setBills((prevBills) =>
+          prevBills.map((b) => {
+            if (b.id !== billId) return b
+            return {
+              ...b,
+              shares: b.shares.map((s) =>
+                s.id === shareId ? { ...s, paidAt: s.paidAt || new Date().toISOString() } : s,
+              ),
+            }
+          }),
+        )
 
-      // If 409, refresh data since someone else paid it
-      if (is409 && selectedHomeId) {
-        await loadHomeData(selectedHomeId)
+        setPaymentStates((prev) => ({
+          ...prev,
+          [shareId]: {
+            status: 'paid',
+            idempotencyKey,
+            errorMessage: undefined,
+          },
+        }))
+
+        // Synchronize with fresh server state
+        if (selectedHomeId) {
+          await loadHomeData(selectedHomeId)
+        }
+      } else {
+        const errorMessage =
+          err instanceof ApiClientError
+            ? err.message
+            : 'Payment failed due to a network or server error.'
+
+        setPaymentStates((prev) => ({
+          ...prev,
+          [shareId]: {
+            status: 'error',
+            idempotencyKey, // preserve key for same-key retry
+            errorMessage,
+          },
+        }))
       }
     }
   }
@@ -566,7 +592,6 @@ function Dashboard() {
                               const state = paymentStates[share.id]
                               const isPaying = state?.status === 'paying'
                               const hasError = state?.status === 'error'
-                              const hasConflict = state?.status === 'conflict'
 
                               return (
                                 <tr key={share.id}>
@@ -579,14 +604,10 @@ function Dashboard() {
                                   <td>
                                     {isPaid ? (
                                       <span className="badge badge-paid">Paid</span>
-                                    ) : hasConflict ? (
-                                      <span className="badge badge-conflict">
-                                        Paid (Key Conflict)
-                                      </span>
                                     ) : (
                                       <span className="badge badge-unpaid">Unpaid</span>
                                     )}
-                                    {hasError && (
+                                    {hasError && !isPaid && (
                                       <span className="share-error-msg">{state.errorMessage}</span>
                                     )}
                                   </td>
@@ -600,20 +621,39 @@ function Dashboard() {
                                         Paid ✓
                                       </button>
                                     ) : (
-                                      <button
-                                        type="button"
-                                        className={`btn btn-sm ${
-                                          hasError ? 'btn-secondary' : 'btn-pay'
-                                        }`}
-                                        disabled={isPaying}
-                                        onClick={() => handlePayShare(bill.id, share.id)}
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          gap: '0.375rem',
+                                          justifyContent: 'flex-end',
+                                        }}
                                       >
-                                        {isPaying
-                                          ? 'Paying...'
-                                          : hasError
-                                            ? 'Retry Payment'
-                                            : 'Pay Share'}
-                                      </button>
+                                        <button
+                                          type="button"
+                                          className={`btn btn-sm ${
+                                            hasError ? 'btn-secondary' : 'btn-pay'
+                                          }`}
+                                          disabled={isPaying}
+                                          onClick={() => handlePayShare(bill.id, share.id)}
+                                        >
+                                          {isPaying
+                                            ? 'Paying...'
+                                            : hasError
+                                              ? 'Retry Payment'
+                                              : 'Pay Share'}
+                                        </button>
+                                        {hasError && (
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-secondary"
+                                            disabled={isPaying}
+                                            onClick={() => loadHomeData(selectedHomeId)}
+                                            title="Check current status from server"
+                                          >
+                                            Reconcile
+                                          </button>
+                                        )}
+                                      </div>
                                     )}
                                   </td>
                                 </tr>
