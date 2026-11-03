@@ -29,4 +29,46 @@ describe('homes and members', () => {
 
     expect(member.status).toBe(404)
   })
+
+  it('rejects missing, empty, or whitespace-only home name with 400', async () => {
+    const missing = await call('POST', '/api/homes', { body: {} })
+    expect(missing.status).toBe(400)
+
+    const empty = await call('POST', '/api/homes', { body: { name: '' } })
+    expect(empty.status).toBe(400)
+
+    const whitespace = await call('POST', '/api/homes', { body: { name: '   ' } })
+    expect(whitespace.status).toBe(400)
+
+    const nonString = await call('POST', '/api/homes', { body: { name: 12345 } })
+    expect(nonString.status).toBe(400)
+  })
+
+  it('rejects missing or invalid member name with 400', async () => {
+    const home = await call<{ id: string }>('POST', '/api/homes', { body: { name: 'Flat 4B' } })
+
+    const missing = await call('POST', `/api/homes/${home.body.id}/members`, { body: {} })
+    expect(missing.status).toBe(400)
+
+    const whitespace = await call('POST', `/api/homes/${home.body.id}/members`, {
+      body: { name: '   ' },
+    })
+    expect(whitespace.status).toBe(400)
+  })
+
+  it('preserves member insertion order across multiple members', async () => {
+    const home = await call<{ id: string }>('POST', '/api/homes', { body: { name: 'Order Home' } })
+    const names = ['Asha', 'Ben', 'Chitra', 'Dev', 'Esha']
+    const createdMembers: Member[] = []
+
+    for (const name of names) {
+      const res = await call<Member>('POST', `/api/homes/${home.body.id}/members`, {
+        body: { name },
+      })
+      expect(res.status).toBe(201)
+      createdMembers.push(res.body)
+    }
+
+    expect(createdMembers.map((m) => m.name)).toEqual(names)
+  })
 })
